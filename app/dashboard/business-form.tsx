@@ -127,7 +127,7 @@ function upsertBusiness(
   const existing = records.find((record) => record.id === business.id);
   const nextRecord: BusinessRecord = {
     id: business.id,
-    slug: business.slug,
+    slug: business.slug ?? "",
     business_name: business.business_name,
     business_type: business.business_type,
     description: business.description,
