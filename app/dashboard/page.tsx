@@ -3,22 +3,21 @@ import { isAdminPasswordConfigured, isDashboardAuthenticated } from "@/lib/admin
 import { sortBusinesses } from "@/lib/business";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import type { BusinessRecord } from "@/lib/types";
-import { loginToDashboard, logoutFromDashboard } from "./actions";
+import { logoutFromDashboard } from "./actions";
 import { BusinessForm } from "./business-form";
+import { DashboardLoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
 
 type DashboardPageProps = {
   searchParams?: Promise<{
     id?: string;
-    error?: string;
   }>;
 };
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const params = searchParams ? await searchParams : undefined;
   const selectedId = params?.id;
-  const authError = params?.error;
 
   if (!isAdminPasswordConfigured()) {
     return (
@@ -62,39 +61,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <p className="mt-4 max-w-2xl text-sm leading-7 text-muted md:text-base">
               This route is protected by the `ADMIN_PASSWORD` environment variable.
             </p>
-
-            {authError === "invalid-password" ? (
-              <div className="mt-6 rounded-[1.25rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                Incorrect password. Try again.
-              </div>
-            ) : null}
-
-            <form action={loginToDashboard} className="mt-8 max-w-md space-y-4">
-              <label className="grid gap-2 text-sm font-medium text-foreground">
-                Password
-                <input
-                  name="password"
-                  type="password"
-                  required
-                  className="ui-input"
-                  placeholder="Enter admin password"
-                />
-              </label>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="submit"
-                  className="inline-flex min-h-12 items-center justify-center rounded-full bg-accent px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(180,106,50,0.26)] hover:bg-accent-dark"
-                >
-                  Unlock Dashboard
-                </button>
-                <Link
-                  href="/"
-                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-border bg-white px-6 text-sm font-medium text-foreground hover:bg-soft"
-                >
-                  Back Home
-                </Link>
-              </div>
-            </form>
+            <DashboardLoginForm />
+            <div className="mt-4">
+              <Link
+                href="/"
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-border bg-white px-6 text-sm font-medium text-foreground hover:bg-soft"
+              >
+                Back Home
+              </Link>
+            </div>
           </section>
         </div>
       </main>
