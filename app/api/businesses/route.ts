@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { isDashboardAuthenticated } from "@/lib/admin-auth";
 import { sanitizeBusinessPayload, slugifyBusinessName } from "@/lib/business";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import type { BusinessFormPayload } from "@/lib/types";
@@ -33,6 +34,10 @@ async function generateUniqueSlug(
 
 export async function POST(request: Request) {
   try {
+    if (!(await isDashboardAuthenticated())) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const payload = (await request.json()) as BusinessFormPayload;
     const supabase = getSupabaseServerClient();
     const business = sanitizeBusinessPayload(payload);

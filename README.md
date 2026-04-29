@@ -1,15 +1,83 @@
-## Business Builder
+# Private Multi-Tenant Website Builder SaaS
 
-This project is a mini Wix-style website generator built inside the existing Next.js app. You fill in a dashboard form, save the data to Supabase, and each business gets its own live route at `/site/[slug]`.
+This project is a simple Node.js + Express app that serves different websites based on the incoming domain name, but only for domains you explicitly allow.
 
-### Stack
+The app is private by design:
 
-- Next.js App Router
-- Tailwind CSS v4
-- Supabase for storage
-- Vercel for deployment
+- requests from unapproved domains are blocked
+- admin pages require a session login
+- create and delete actions are protected
 
-## Setup
+## Security Rules
+
+### 1. Allowed domains only
+
+The server checks `req.headers.host` on every request.
+
+Only domains in this array are allowed:
+
+```js
+const allowedDomains = ["yourdomain.com", "localhost"];
+```
+
+Update that array in [server.js](/home/isaac/my-builder/server.js:1) before deploying.
+
+- Keep `localhost` for local testing
+- Replace `yourdomain.com` with your real domain
+- If the host is not allowed, the app returns `403 Forbidden`
+
+### 2. Admin login
+
+The app uses `express-session` for login sessions.
+
+The hardcoded admin account is:
+
+- username: `admin`
+- password: `strongpassword123`
+
+The login page is:
+
+```text
+/login
+```
+
+Protected routes:
+
+- `/admin`
+- `POST /admin/sites`
+- `POST /admin/sites/:id/delete`
+- `POST /logout`
+
+If the user is not logged in, they are redirected to `/login`.
+
+## Features
+
+- Node.js with Express
+- SQLite database
+- Session-based admin authentication
+- Domain restriction middleware
+- Admin dashboard to create and delete sites
+- Plain HTML rendering
+
+## Database
+
+The app creates a `sites` table automatically on startup with:
+
+- `id`
+- `domain`
+- `title`
+- `description`
+- `primaryColor`
+
+The SQLite file is created automatically at `data/sites.db`.
+
+## Project Structure
+
+- [server.js](/home/isaac/my-builder/server.js:1): Express server, sessions, domain restriction, routes
+- [db.js](/home/isaac/my-builder/db.js:1): SQLite setup and queries
+- [templates.js](/home/isaac/my-builder/templates.js:1): HTML templates for login, admin, errors, and sites
+
+## Run Locally
 
 1. Install dependencies:
 
@@ -17,89 +85,117 @@ This project is a mini Wix-style website generator built inside the existing Nex
 npm install
 ```
 
-2. Create your local environment file:
-
-```bash
-cp .env.example .env.local
-```
-
-3. Create a Supabase project at https://supabase.com.
-
-4. In the Supabase dashboard:
-- Copy the project URL into `NEXT_PUBLIC_SUPABASE_URL`.
-- Copy the service role key into `SUPABASE_SERVICE_ROLE_KEY`.
-
-5. Open the Supabase SQL editor and run the contents of [supabase/schema.sql](/home/isaac/my-builder/supabase/schema.sql:1).
-
-6. Start the app:
+2. Start the app:
 
 ```bash
 npm run dev
 ```
 
-7. Open `http://localhost:3000/dashboard`, create a business, and click the preview button to open `/site/[slug]`.
+3. Open the login page:
 
-## How Supabase Is Connected
+```text
+http://localhost:3000/login
+```
 
-- The server-side client lives in [lib/supabase.ts](/home/isaac/my-builder/lib/supabase.ts:1).
-- The dashboard saves data through [app/api/businesses/route.ts](/home/isaac/my-builder/app/api/businesses/route.ts:1).
-- The public business page loads data in [app/site/[slug]/page.tsx](/home/isaac/my-builder/app/site/[slug]/page.tsx:1).
-- This app uses the service role key only on the server. Do not expose that key in client components.
+4. Log in with:
 
-## Data Model
+- username: `admin`
+- password: `strongpassword123`
 
-The `businesses` table stores:
+5. Open the admin dashboard:
 
-- `business_name`
-- `slug`
-- `business_type`
-- `description`
-- `domain`
-- `city`
-- `phone`
-- `services` as a Postgres `text[]`
-- `menu_items` as `jsonb`
-- timestamps for creation and updates
+```text
+http://localhost:3000/admin
+```
 
-## Main Routes
+6. Create a site using domain:
 
-- `/` simple landing page
-- `/dashboard` create and update businesses
-- `/site/[slug]` public business website
+```text
+localhost
+```
 
-## Slugs
+7. Open:
 
-Each business gets a URL-safe slug generated from the business name.
+```text
+http://localhost:3000/
+```
 
-- `BrightPath Consulting` becomes `/site/brightpath-consulting`.
-- If another business already uses that slug, the app adds a suffix like `brightpath-consulting-2`.
-- Slugs are generated on save and enforced as unique in Supabase.
-- Public business pages are resolved only by `/site/[slug]`, not by UUID.
+Because `localhost` is in `allowedDomains`, the request is allowed during local testing.
 
-## Custom Domains
+## How It Works
 
-Each business can optionally store a custom domain like `example.com`.
+### Domain restriction
 
-- Enter the domain in the dashboard without `https://` or paths.
-- The app normalizes domains by lowercasing, removing `www.`, and removing ports.
-- Incoming requests are checked in [proxy.ts](/home/isaac/my-builder/proxy.ts:1).
-- If the request hostname matches a saved business domain, the request is rewritten to `/site/[slug]`.
-- If no domain matches, the app falls back to normal routing, including direct `/site/[slug]` URLs.
+- Every request reads `req.headers.host`
+- The server strips the port
+- The domain must exist in `allowedDomains`
+- If not, the server returns `403 Forbidden`
 
-For production, point the custom domain DNS to your deployed Vercel project and add the domain in Vercel project settings.
+### Site rendering
 
-## Deploy To Vercel
+- For allowed domains, the app looks up the domain in SQLite
+- If a site exists, it renders the site's title, description, and background color
+- If no matching site exists, the app returns `Site not found`
 
-1. Push this repo to GitHub.
-2. Import the repository into Vercel.
-3. In Vercel project settings, add:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-4. Redeploy the project.
-5. Open `/dashboard`, save a business, and use the generated `/site/[slug]` page.
+### Admin protection
+
+- `/login` shows the login form
+- Successful login creates a session
+- Admin routes check `req.session.isLoggedIn`
+- Logged-out users are redirected back to `/login`
+
+## Deploy
+
+You can deploy this app to platforms that support Node.js and Express, such as:
+
+- Vercel
+- Render
+- Railway
+- Fly.io
+- a VPS
+
+## Deployment Steps
+
+1. Push the project to GitHub.
+2. Create a new Node.js web service.
+3. Use this start command:
+
+```bash
+npm start
+```
+
+4. Set environment variables:
+
+- `PORT`
+- `SESSION_SECRET`
+
+5. Edit `allowedDomains` in [server.js](/home/isaac/my-builder/server.js:1) so it includes only the real domains you want to trust.
+
+Example:
+
+```js
+const allowedDomains = ["yourdomain.com"];
+```
+
+6. Point your Cloudflare DNS records to the deployed app.
+7. Visit `https://yourdomain.com/login`
+8. Log in as the admin user.
+9. Manage sites from `https://yourdomain.com/admin`
+
+## Cloudflare Notes
+
+If someone visits the raw deployment URL and that host is not in `allowedDomains`, they will get `403 Forbidden`.
+
+That means the Vercel URL or any unapproved hostname cannot be used to access:
+
+- the login page
+- the admin dashboard
+- site creation
+- site deletion
+- tenant sites
 
 ## Notes
 
-- The site template is intentionally simple and mobile-friendly.
-- The map uses a Google Maps embed URL generated from the business location field.
-- Preview is enabled after the business has been saved once.
+- This version keeps the login simple and beginner-friendly with one hardcoded admin account.
+- Sessions are stored in memory, which is fine for a small demo or a single server.
+- For production at larger scale, you would move sessions to a shared store such as Redis and stop hardcoding credentials.
